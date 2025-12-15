@@ -2,8 +2,6 @@ import { GoogleGenAI } from "@google/genai";
 import { SceneParams } from "../types";
 import { GEL_PRESETS } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const getGelName = (hex: string) => {
     const match = GEL_PRESETS.find(g => g.hex.toLowerCase() === hex.toLowerCase());
     return match ? match.name : "Custom Color";
@@ -16,7 +14,14 @@ const getTempDescription = (kelvin: number) => {
     return "Cool Blue";
 };
 
-export const generateImageWithGemini = async (params: SceneParams, referenceImageBase64?: string): Promise<string> => {
+export const generateImageWithGemini = async (params: SceneParams, referenceImageBase64?: string, apiKey?: string): Promise<string> => {
+  if (!apiKey) {
+      throw new Error("Gemini API Key is required. Please enter it in the API Key field.");
+  }
+
+  // Initialize client with the provided key
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+
   // Construct a descriptive prompt for the model
   const keyGel = getGelName(params.keyLight.gel);
   const keyTempDesc = getTempDescription(params.keyLight.colorTemp);

@@ -231,7 +231,7 @@ function init() {
            <div class="p-4 bg-[#0f0f11] border-t border-white/5 space-y-3">
               <div class="relative">
                   <i data-lucide="key" class="absolute left-3 top-2.5 w-3 h-3 text-zinc-600"></i>
-                  <input type="password" id="input-fal-key" class="input-field w-full rounded-lg py-2 pl-8 pr-3 text-[10px] font-mono placeholder-zinc-600" placeholder="FAL API Key (Optional for Gemini)">
+                  <input type="password" id="input-fal-key" class="input-field w-full rounded-lg py-2 pl-8 pr-3 text-[10px] font-mono placeholder-zinc-600" placeholder="Enter API Key (Gemini or FAL)">
               </div>
               <div class="flex gap-2">
                   <button id="btn-generate-gemini" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-lg shadow-emerald-900/20 transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center font-bold text-xs tracking-wide">
@@ -417,6 +417,103 @@ function init() {
 
   // 7. Initial Sync
   syncUI();
+}
+
+function bindEvents() {
+  // Inputs
+  els.inputSubject.addEventListener('input', (e) => updateState('subjectDescription', (e.target as HTMLTextAreaElement).value));
+  els.inputModel.addEventListener('change', (e) => updateState('subjectModel', (e.target as HTMLSelectElement).value));
+  els.inputLens.addEventListener('change', (e) => updateState('lensType', (e.target as HTMLSelectElement).value));
+  els.inputAngle.addEventListener('change', (e) => updateState('cameraAngle', (e.target as HTMLSelectElement).value));
+  els.inputShot.addEventListener('change', (e) => updateState('shotSize', (e.target as HTMLSelectElement).value));
+  els.inputFalKey.addEventListener('input', (e) => updateState('falApiKey', (e.target as HTMLInputElement).value));
+
+  // Lighting Controls
+  els.tabKey.addEventListener('click', () => updateState('activeLight', 'key'));
+  els.tabFill.addEventListener('click', () => updateState('activeLight', 'fill'));
+
+  els.inputEnabled.addEventListener('change', (e) => {
+      const checked = (e.target as HTMLInputElement).checked;
+      if (state.activeLight === 'key') updateKeyLight('enabled', checked);
+      else updateFillLight('enabled', checked);
+  });
+
+  els.inputTemp.addEventListener('input', (e) => {
+      const val = parseInt((e.target as HTMLInputElement).value);
+      if (state.activeLight === 'key') updateKeyLight('colorTemp', val);
+      else updateFillLight('colorTemp', val);
+  });
+
+  els.inputIntensity.addEventListener('input', (e) => {
+      const val = parseFloat((e.target as HTMLInputElement).value);
+      if (state.activeLight === 'key') updateKeyLight('intensity', val);
+      else updateFillLight('intensity', val);
+  });
+
+  els.presetSelect.addEventListener('change', (e) => {
+      const val = (e.target as HTMLSelectElement).value;
+      if (!val) return;
+      const preset = (LIGHTING_PRESETS as any)[val];
+      if (preset) {
+          updateKeyLight('position', preset.keyPos);
+          updateFillLight('position', preset.fillPos);
+          updateFillLight('intensity', preset.fillInt);
+      }
+      (e.target as HTMLSelectElement).value = ''; // Reset select
+  });
+
+  // Tools
+  els.btnMoveKey.addEventListener('click', () => updateState('mode', ControlMode.DRAG_KEY));
+  els.btnMoveFill.addEventListener('click', () => updateState('mode', ControlMode.DRAG_FILL));
+  els.btnOrbit.addEventListener('click', () => updateState('mode', ControlMode.ORBIT));
+
+  // Generation
+  els.btnGenerateFal.addEventListener('click', () => handleGeneration('BRIA'));
+  els.btnGenerateGemini.addEventListener('click', () => handleGeneration('GEMINI'));
+
+  // Top Bar Actions
+  els.btnGalleryToggle.addEventListener('click', () => {
+      state.isGalleryOpen = !state.isGalleryOpen;
+      syncUI(true);
+  });
+
+  els.btnExport.addEventListener('click', () => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `fibo-scene-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+  });
+
+  els.btnImport.addEventListener('click', () => els.fileInput.click());
+  els.fileInput.addEventListener('change', (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+          try {
+              if (typeof ev.target?.result === 'string') {
+                  const loaded = JSON.parse(ev.target.result);
+                  state = { ...state, ...loaded };
+                  updateSubjectModel();
+                  update3DFromState();
+                  syncUI();
+              }
+          } catch (err) {
+              console.error(err);
+              alert("Invalid JSON file");
+          }
+      };
+      reader.readAsText(file);
+      (e.target as HTMLInputElement).value = '';
+  });
+
+  // Lightbox
+  els.btnCloseLightbox.addEventListener('click', closeLightbox);
+  els.btnDownloadImg.addEventListener('click', downloadImage);
+  els.btnDownloadJson.addEventListener('click', downloadJson);
 }
 
 // --- 3D Logic ---
@@ -873,112 +970,12 @@ function syncUI(skip3D = false) {
   if (!skip3D) update3DFromState();
 }
 
-function bindEvents() {
-  els.btnOrbit.onclick = () => updateState('mode', ControlMode.ORBIT);
-  
-  els.tabKey.onclick = () => {
-      state.activeLight = 'key';
-      syncUI();
-  }
-  els.tabFill.onclick = () => {
-      state.activeLight = 'fill';
-      syncUI();
-  }
-
-  els.btnMoveKey.onclick = () => updateState('mode', ControlMode.DRAG_KEY);
-  els.btnMoveFill.onclick = () => updateState('mode', ControlMode.DRAG_FILL);
-
-  els.inputEnabled.onchange = (e: any) => {
-      if (state.activeLight === 'key') updateKeyLight('enabled', e.target.checked);
-      else updateFillLight('enabled', e.target.checked);
-  }
-  
-  els.inputSubject.oninput = (e: any) => updateState('subjectDescription', e.target.value);
-  els.inputModel.onchange = (e: any) => updateState('subjectModel', e.target.value);
-  els.inputFalKey.oninput = (e: any) => updateState('falApiKey', e.target.value);
-  els.inputLens.onchange = (e: any) => updateState('lensType', e.target.value);
-  els.inputAngle.onchange = (e: any) => updateState('cameraAngle', e.target.value);
-  els.inputShot.onchange = (e: any) => updateState('shotSize', e.target.value);
-  
-  els.inputTemp.oninput = (e: any) => {
-      const val = parseInt(e.target.value);
-      if (state.activeLight === 'key') updateKeyLight('colorTemp', val);
-      else updateFillLight('colorTemp', val);
-  }
-  els.inputIntensity.oninput = (e: any) => {
-      const val = parseFloat(e.target.value);
-      if (state.activeLight === 'key') updateKeyLight('intensity', val);
-      else updateFillLight('intensity', val);
-  }
-
-  els.presetSelect.onchange = (e: any) => {
-      const val = e.target.value;
-      if (!val || !LIGHTING_PRESETS[val as keyof typeof LIGHTING_PRESETS]) return;
-      const preset = LIGHTING_PRESETS[val as keyof typeof LIGHTING_PRESETS];
-      state.keyLight.position = preset.keyPos;
-      state.fillLight.position = preset.fillPos;
-      state.fillLight.intensity = preset.fillInt;
-      state.fillLight.enabled = true;
-      state.activeLight = 'key'; 
-      syncUI();
-      update3DFromState();
-  };
-
-  els.btnGenerateFal.onclick = async () => handleGeneration('BRIA');
-  els.btnGenerateGemini.onclick = async () => handleGeneration('GEMINI');
-
-  // Gallery Toggle
-  els.btnGalleryToggle.onclick = () => {
-      state.isGalleryOpen = !state.isGalleryOpen;
-      syncUI();
-  };
-
-  // Export
-  els.btnExport.onclick = () => {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
-      const downloadAnchorNode = document.createElement('a');
-      downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", "fibo_scene.json");
-      document.body.appendChild(downloadAnchorNode);
-      downloadAnchorNode.click();
-      downloadAnchorNode.remove();
-  };
-
-  // Import
-  els.btnImport.onclick = () => els.fileInput.click();
-  els.fileInput.onchange = (e: any) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-          try {
-              const loadedState = JSON.parse(event.target?.result as string);
-              // Simple validation
-              if (loadedState.keyLight && loadedState.subjectDescription) {
-                  // Merge but keep session specific stuff like mode
-                  state = { ...state, ...loadedState, mode: ControlMode.ORBIT, isGenerating: false };
-                  syncUI();
-                  update3DFromState();
-              } else {
-                  alert("Invalid Scene File");
-              }
-          } catch (err) {
-              alert("Error parsing file");
-          }
-      };
-      reader.readAsText(file);
-  };
-
-  // Lightbox Events
-  els.btnCloseLightbox.onclick = closeLightbox;
-  els.btnDownloadImg.onclick = downloadImage;
-  els.btnDownloadJson.onclick = downloadJson;
-}
-
 async function handleGeneration(engine: string) {
     if (state.isGenerating) return;
-    if (engine === 'BRIA' && !state.falApiKey) {
-        alert("Please enter a FAL API Key.");
+    
+    // Check key based on engine
+    if (!state.falApiKey) {
+        alert("Please enter an API Key.");
         return;
     }
 
@@ -1023,7 +1020,8 @@ async function handleGeneration(engine: string) {
             imageUrl = await generateImageFromScene(state, state.falApiKey);
         } else {
             // Send the clean plate to Gemini as a composition reference
-            imageUrl = await generateImageWithGemini(state, referenceImage);
+            // Pass the API key entered in the UI
+            imageUrl = await generateImageWithGemini(state, referenceImage, state.falApiKey);
         }
         
         const shot: GeneratedShot = {

@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { createIcons, Video, Aperture, Zap, Palette, Code, Sliders, Image as ImageIcon, Crosshair, ChevronDown, Download, Upload, Sun, Moon, Key, Box, Move, X, Eye, Monitor, Film, Layers } from 'lucide';
+import { createIcons, Video, Aperture, Zap, Palette, Code, Sliders, Image as ImageIcon, Crosshair, ChevronDown, Download, Upload, Sun, Moon, Key, Box, Move, X, Eye, Monitor, Film, Layers, Globe } from 'lucide';
 import { DEFAULT_PARAMS, ControlMode, SceneParams, LightSettings, GeneratedShot } from './types';
 import { KELVIN_COLORS, GEL_PRESETS, LENS_OPTIONS, ANGLE_OPTIONS, SHOT_OPTIONS, STYLE_OPTIONS } from './constants';
 import { generateImageFromScene } from './services/falService';
 import { generateImageWithGemini } from './services/geminiService';
+import { generateImageWithBria } from './services/briaService';
 
 // --- State Management ---
 let state = {
@@ -14,7 +15,7 @@ let state = {
   mode: ControlMode.ORBIT,
   activeLight: 'key' as 'key' | 'fill', 
   isGenerating: false,
-  falApiKey: '',
+  apiKey: '', // Renamed from falApiKey to generic apiKey
   gallery: [] as GeneratedShot[],
   viewingShotId: null as string | null, // For Lightbox
   isGalleryOpen: true, // Track gallery visibility
@@ -231,14 +232,17 @@ function init() {
            <div class="p-4 bg-[#0f0f11] border-t border-white/5 space-y-3">
               <div class="relative">
                   <i data-lucide="key" class="absolute left-3 top-2.5 w-3 h-3 text-zinc-600"></i>
-                  <input type="password" id="input-fal-key" class="input-field w-full rounded-lg py-2 pl-8 pr-3 text-[10px] font-mono placeholder-zinc-600" placeholder="Enter API Key (Gemini or FAL)">
+                  <input type="password" id="input-api-key" class="input-field w-full rounded-lg py-2 pl-8 pr-3 text-[10px] font-mono placeholder-zinc-600" placeholder="Enter API Key for selected service">
               </div>
-              <div class="flex gap-2">
-                  <button id="btn-generate-gemini" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-lg shadow-emerald-900/20 transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center font-bold text-xs tracking-wide">
-                      <i data-lucide="zap" class="w-3 h-3 mr-1.5"></i> GEMINI
+              <div class="grid grid-cols-3 gap-2">
+                  <button id="btn-generate-gemini" class="py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-lg shadow-emerald-900/20 transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center font-bold text-[10px] tracking-wide flex-col">
+                      <i data-lucide="zap" class="w-3 h-3 mb-1"></i> GEMINI
                   </button>
-                  <button id="btn-generate-fal" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-lg shadow-indigo-900/20 transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center font-bold text-xs tracking-wide">
-                      <i data-lucide="aperture" class="w-3 h-3 mr-1.5"></i> BRIA 2.3 (FIBO)
+                  <button id="btn-generate-fal" class="py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-lg shadow-indigo-900/20 transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center font-bold text-[10px] tracking-wide flex-col">
+                      <i data-lucide="aperture" class="w-3 h-3 mb-1"></i> FAL.AI
+                  </button>
+                   <button id="btn-generate-bria" class="py-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-lg shadow-pink-900/20 transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center font-bold text-[10px] tracking-wide flex-col">
+                      <i data-lucide="globe" class="w-3 h-3 mb-1"></i> BRIA
                   </button>
               </div>
            </div>
@@ -335,7 +339,7 @@ function init() {
   `;
 
   // 2. Initialize Icons
-  createIcons({ icons: { Video, Aperture, Zap, Palette, Code, Sliders, ImageIcon, Crosshair, ChevronDown, Download, Upload, Sun, Moon, Key, Box, Move, X, Eye, Monitor, Film, Layers } });
+  createIcons({ icons: { Video, Aperture, Zap, Palette, Code, Sliders, ImageIcon, Crosshair, ChevronDown, Download, Upload, Sun, Moon, Key, Box, Move, X, Eye, Monitor, Film, Layers, Globe } });
 
   // 3. Cache DOM Elements
   els.btnOrbit = document.getElementById('btn-orbit')!;
@@ -362,7 +366,8 @@ function init() {
   
   els.btnGenerateFal = document.getElementById('btn-generate-fal')!;
   els.btnGenerateGemini = document.getElementById('btn-generate-gemini')!;
-  els.inputFalKey = document.getElementById('input-fal-key')! as HTMLInputElement;
+  els.btnGenerateBria = document.getElementById('btn-generate-bria')!;
+  els.inputApiKey = document.getElementById('input-api-key')! as HTMLInputElement;
 
   els.btnGalleryToggle = document.getElementById('btn-gallery-toggle')!;
   els.galleryContainer = document.getElementById('gallery-container')!;
@@ -426,7 +431,7 @@ function bindEvents() {
   els.inputLens.addEventListener('change', (e) => updateState('lensType', (e.target as HTMLSelectElement).value));
   els.inputAngle.addEventListener('change', (e) => updateState('cameraAngle', (e.target as HTMLSelectElement).value));
   els.inputShot.addEventListener('change', (e) => updateState('shotSize', (e.target as HTMLSelectElement).value));
-  els.inputFalKey.addEventListener('input', (e) => updateState('falApiKey', (e.target as HTMLInputElement).value));
+  els.inputApiKey.addEventListener('input', (e) => updateState('apiKey', (e.target as HTMLInputElement).value));
 
   // Lighting Controls
   els.tabKey.addEventListener('click', () => updateState('activeLight', 'key'));
@@ -468,8 +473,9 @@ function bindEvents() {
   els.btnOrbit.addEventListener('click', () => updateState('mode', ControlMode.ORBIT));
 
   // Generation
-  els.btnGenerateFal.addEventListener('click', () => handleGeneration('BRIA'));
+  els.btnGenerateFal.addEventListener('click', () => handleGeneration('BRIA')); // Kept 'BRIA' internal string for FAL.AI integration per original logic
   els.btnGenerateGemini.addEventListener('click', () => handleGeneration('GEMINI'));
+  els.btnGenerateBria.addEventListener('click', () => handleGeneration('BRIA_DIRECT'));
 
   // Top Bar Actions
   els.btnGalleryToggle.addEventListener('click', () => {
@@ -893,7 +899,7 @@ function syncUI(skip3D = false) {
   (els.inputLens as HTMLSelectElement).value = state.lensType;
   (els.inputAngle as HTMLSelectElement).value = state.cameraAngle;
   (els.inputShot as HTMLSelectElement).value = state.shotSize;
-  (els.inputFalKey as HTMLInputElement).value = state.falApiKey;
+  (els.inputApiKey as HTMLInputElement).value = state.apiKey;
 
   // Active Light UI
   const activeL = state.activeLight === 'key' ? state.keyLight : state.fillLight;
@@ -974,12 +980,16 @@ async function handleGeneration(engine: string) {
     if (state.isGenerating) return;
     
     // Check key based on engine
-    if (!state.falApiKey) {
+    if (!state.apiKey) {
         alert("Please enter an API Key.");
         return;
     }
 
-    const btn = engine === 'BRIA' ? els.btnGenerateFal : els.btnGenerateGemini;
+    let btn;
+    if (engine === 'BRIA') btn = els.btnGenerateFal;
+    else if (engine === 'BRIA_DIRECT') btn = els.btnGenerateBria;
+    else btn = els.btnGenerateGemini;
+
     const originalText = btn.innerHTML;
     state.isGenerating = true;
     btn.innerHTML = `<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>`;
@@ -1017,11 +1027,13 @@ async function handleGeneration(engine: string) {
         if (transformControl.object) transformControl.visible = true;
 
         if (engine === 'BRIA') {
-            imageUrl = await generateImageFromScene(state, state.falApiKey);
+            imageUrl = await generateImageFromScene(state, state.apiKey);
+        } else if (engine === 'BRIA_DIRECT') {
+            imageUrl = await generateImageWithBria(state, state.apiKey);
         } else {
             // Send the clean plate to Gemini as a composition reference
             // Pass the API key entered in the UI
-            imageUrl = await generateImageWithGemini(state, referenceImage, state.falApiKey);
+            imageUrl = await generateImageWithGemini(state, referenceImage, state.apiKey);
         }
         
         const shot: GeneratedShot = {

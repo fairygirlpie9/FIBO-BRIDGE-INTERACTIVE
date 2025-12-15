@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fibo Bridge - Virtual DP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      body { margin: 0; background-color: #000000; color: #e4e4e7; overflow: hidden; font-family: 'Montserrat', sans-serif; }
+      .font-mono { font-family: 'JetBrains Mono', monospace; }
+      
+      #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; background: radial-gradient(circle at center, #1a1a20 0%, #000000 100%); }
+      #ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 10; display: flex; flex-direction: column; }
+      .pointer-events-auto { pointer-events: auto; }
+      
+      /* Glassmorphism Utilities */
+      .glass-panel {
+        background: rgba(20, 20, 23, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+      
+      .custom-scroll { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
+      
+      /* Inputs */
+      input[type=range] { -webkit-appearance: none; background: transparent; }
+      input[type=range]::-webkit-slider-thumb { 
+        -webkit-appearance: none; 
+        height: 14px; 
+        width: 14px; 
+        border-radius: 50%; 
+        background: #fff; 
+        margin-top: -5px; 
+        cursor: pointer; 
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        border: 2px solid #6366f1;
+      }
+      input[type=range]::-webkit-slider-runnable-track { 
+        width: 100%; 
+        height: 4px; 
+        cursor: pointer; 
+        background: #27272a; 
+        border-radius: 2px; 
+      }
+      
+      .input-field {
+        background: #18181b;
+        border: 1px solid #27272a;
+        color: #e4e4e7;
+        transition: all 0.2s;
+      }
+      .input-field:focus {
+        border-color: #6366f1;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.160.0",
+    "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+    "lucide": "https://esm.sh/lucide@0.300.0",
+    "three/": "https://esm.sh/three@^0.182.0/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@^9.4.2",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@^10.7.7",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0"
+  }
+}
+</script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
